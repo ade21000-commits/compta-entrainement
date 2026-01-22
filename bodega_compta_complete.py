@@ -107,123 +107,57 @@ nom_eleve = st.text_input("Nom et prénom")
 st.divider()
 
 # =====================
-# ÉTAPE 1 – OPÉRATION
+# ÉTATS COMPTABLES (ESSENTIELS)
 # =====================
-st.subheader("1️⃣ Informations de l'opération")
+if st.session_state.journal:
+    df_all = pd.DataFrame(st.session_state.journal)
 
-col1, col2 = st.columns(2)
-with col1:
-    date_op = st.date_input("Date", value=datetime.today())
-with col2:
-    num_piece = st.text_input("N° de pièce", value="OP001")
+    st.subheader("⚖️ Balance")
+    balance = df_all.groupby(['Compte','Intitulé']).agg({'Débit':'sum','Crédit':'sum'}).reset_index()
+    balance['Solde débiteur'] = (balance['Débit'] - balance['Crédit']).clip(lower=0)
+    balance['Solde créditeur'] = (balance['Crédit'] - balance['Débit']).clip(lower=0)
+    st.dataframe(balance, use_container_width=True)
 
-libelle_op = st.text_input("Libellé de l'opération", placeholder="Ex : Achat de marchandises")
+    st.divider()
 
-st.divider()
+    st.subheader("📚 Grand livre")
+    compte_sel = st.selectbox("Choisir un compte", balance['Compte'].unique())
+    gl = df_all[df_all['Compte'] == compte_sel].copy()
+    gl['Solde'] = (gl['Débit'] - gl['Crédit']).cumsum()
+    st.dataframe(gl[['Date','Pièce','Libellé','Débit','Crédit','Solde']], use_container_width=True)
 
-# =====================
-# ÉTAPE 2 – LIGNES
-# =====================
-st.subheader("2️⃣ Lignes comptables")
+    st.divider()
 
-with st.expander("➕ Ajouter une opération (effet miroir débit / crédit)", expanded=True):
-    st.markdown("**Ligne 1 : Débit**")
+    st.subheader("💰 Compte de résultat")
+    charges = balance[balance['Compte'].astype(str).str.startswith('6')]
+    produits = balance[balance['Compte'].astype(str).str.startswith('7')]
     col1, col2 = st.columns(2)
     with col1:
-        compte_debit = st.selectbox(
-            "Compte débité",
-            options=list(PLAN_COMPTABLE.keys()),
-            format_func=lambda x: f"{x} – {PLAN_COMPTABLE[x]}",
-            key="compte_debit"
-        )
+        st.markdown("**Charges**")
+        st.dataframe(charges[['Compte','Intitulé','Débit']], use_container_width=True)
+        total_charges = charges['Débit'].sum()
     with col2:
-        montant = st.number_input("Montant", min_value=0.0, step=10.0)
+        st.markdown("**Produits**")
+        st.dataframe(produits[['Compte','Intitulé','Crédit']], use_container_width=True)
+        total_produits = produits['Crédit'].sum()
 
-    st.markdown("**Ligne 2 : Crédit**")
-    compte_credit = st.selectbox(
-        "Compte crédité",
-        options=list(PLAN_COMPTABLE.keys()),
-        format_func=lambda x: f"{x} – {PLAN_COMPTABLE[x]}",
-        key="compte_credit"
-    )
-
-    if st.button("Ajouter l'opération"):
-        if montant == 0:
-            st.error("Veuillez saisir un montant")
-        elif compte_debit == compte_credit:
-            st.error("Les comptes débit et crédit doivent être différents")
-        else:
-            st.session_state.operation.append({
-                "Compte": compte_debit,
-                "Intitulé": PLAN_COMPTABLE[compte_debit],
-                "Débit": montant,
-                "Crédit": 0
-            })
-            st.session_state.operation.append({
-                "Compte": compte_credit,
-                "Intitulé": PLAN_COMPTABLE[compte_credit],
-                "Débit": 0,
-                "Crédit": montant
-            })
-            st.success("Opération ajoutée (effet miroir respecté)")
-
-# =====================
-# AFFICHAGE DES LIGNES
-# =====================
-if st.session_state.operation:
-    st.markdown("### Lignes saisies")
-    df_op = pd.DataFrame(st.session_state.operation)
-    st.dataframe(df_op, use_container_width=True)
-
-    total_debit = df_op["Débit"].sum()
-    total_credit = df_op["Crédit"].sum()
-
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Total débit", f"{total_debit:.2f} €")
-    col2.metric("Total crédit", f"{total_credit:.2f} €")
-
-    if abs(total_debit - total_credit) < 0.01:
-        col3.success("Équilibré")
+    resultat = total_produits - total_charges
+    if resultat >= 0:
+        st.success(f"Résultat : bénéfice de {resultat:.2f} €")
     else:
-        col3.error("Non équilibré")
+        st.error(f"Résultat : perte de {abs(resultat):.2f} €")
 
-    # =====================
-    # VALIDATION
-    # =====================
-    if st.button("Valider l'opération", disabled=abs(total_debit - total_credit) > 0.01):
-        for l in st.session_state.operation:
-            st.session_state.journal.append({
-                "Date": date_op.strftime("%d/%m/%Y"),
-                "Pièce": num_piece,
-                "Libellé": libelle_op,
-                **l
-            })
+    st.divider()
 
-        st.session_state.operation = []
-        st.success("Opération enregistrée")
-
-st.divider()
-
-# =====================
-# JOURNAL SIMPLIFIÉ
-# =====================
-st.subheader("📘 Journal comptable")
-
-if st.session_state.journal:
-    df_journal = pd.DataFrame(st.session_state.journal)
-
-    # Regroupement par pièce
-    for piece, groupe in df_journal.groupby('Pièce'):
-        st.markdown(f"**Pièce {piece} – {groupe.iloc[0]['Libellé']} ({groupe.iloc[0]['Date']})**")
-        st.dataframe(groupe[['Compte','Intitulé','Débit','Crédit']], use_container_width=True, hide_index=True)
-
-        if st.button(f"🗑️ Supprimer la pièce {piece}", key=f"del_{piece}"):
-            st.session_state.journal = [
-                e for e in st.session_state.journal if e['Pièce'] != piece
-            ]
-            st.success("Opération supprimée")
-            st.rerun()
-
-        st.divider()
-else:
-    st.info("Aucune écriture enregistrée")
+    st.subheader("🧾 Bilan")
+    actif = balance[balance['Compte'].astype(str).str.startswith(('2','3','5'))][['Compte','Intitulé','Solde débiteur']]
+    passif = balance[balance['Compte'].astype(str).str.startswith(('1','4'))][['Compte','Intitulé','Solde créditeur']]
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown("**Actif**")
+        st.dataframe(actif, use_container_width=True)
+        st.metric("Total actif", f"{actif['Solde débiteur'].sum():.2f} €")
+    with col2:
+        st.markdown("**Passif**")
+        st.dataframe(passif, use_container_width=True)
+        st.metric("Total passif", f"{passif['Solde créditeur'].sum():.2f} €")
