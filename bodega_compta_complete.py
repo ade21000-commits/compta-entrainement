@@ -212,90 +212,73 @@ st.subheader("📘 Journal comptable")
 if st.session_state.journal:
     df_journal = pd.DataFrame(st.session_state.journal)
     st.dataframe(df_journal, use_container_width=True)
-else:
-    st.info("Aucune écriture enregistrée")
 
-st.divider()
+    st.divider()
 
-# =====================
-# ÉTATS COMPTABLES (AFFICHAGE DIRECT)
-# =====================
-
-if st.session_state.journal:
-
+    # =====================
+    # ÉTATS COMPTABLES
+    # =====================
     st.subheader("📊 États comptables")
 
-    # =====================
-    # GRAND LIVRE
-    # =====================
-    st.markdown("### 📚 Grand livre")
-if st.button("❓ Expliquer ce document – Grand livre"):
-    st.info("Le grand livre regroupe toutes les écritures d’un même compte. Il permet de suivre l’évolution du solde du compte après chaque opération. On lit les montants au débit et au crédit, puis on calcule le solde progressif.")
-    comptes = sorted(df_journal['Compte'].unique())
-    compte_sel = st.selectbox("Compte", comptes)
-    gl = df_journal[df_journal['Compte'] == compte_sel].copy()
-    gl['Solde'] = (gl['Débit'] - gl['Crédit']).cumsum()
-    st.dataframe(gl[['Date', 'Pièce', 'Libellé', 'Débit', 'Crédit', 'Solde']], use_container_width=True)
-
-    st.divider()
-
-    # =====================
     # BALANCE
-    # =====================
-    st.markdown("### ⚖️ Balance comptable")
-if st.button("❓ Expliquer ce document – Balance"):
-    st.info("La balance récapitule tous les comptes de l’entreprise avec le total des débits et des crédits. Elle sert à vérifier que la comptabilité est équilibrée : le total des débits doit être égal au total des crédits.")
-    balance = df_journal.groupby('Compte').agg({'Débit': 'sum', 'Crédit': 'sum'}).reset_index()
-    balance['Solde débiteur'] = balance.apply(lambda r: r['Débit'] - r['Crédit'] if r['Débit'] > r['Crédit'] else 0, axis=1)
-    balance['Solde créditeur'] = balance.apply(lambda r: r['Crédit'] - r['Débit'] if r['Crédit'] > r['Débit'] else 0, axis=1)
+    st.markdown("### ⚖️ Balance")
+    balance = df_journal.groupby(['Compte', 'Intitulé']).agg({
+        'Débit': 'sum',
+        'Crédit': 'sum'
+    }).reset_index()
+    balance['Solde débiteur'] = (balance['Débit'] - balance['Crédit']).clip(lower=0)
+    balance['Solde créditeur'] = (balance['Crédit'] - balance['Débit']).clip(lower=0)
     st.dataframe(balance, use_container_width=True)
 
-    st.divider()
-
-    # =====================
     # COMPTE DE RÉSULTAT
-    # =====================
     st.markdown("### 💰 Compte de résultat")
-if st.button("❓ Expliquer ce document – Compte de résultat"):
-    st.info("Le compte de résultat permet de mesurer la performance de l’entreprise sur une période. Il compare les charges (classe 6) et les produits (classe 7). Si les produits sont supérieurs aux charges, l’entreprise réalise un bénéfice, sinon une perte.")
-    charges = df_journal[df_journal['Compte'].str.startswith('6')].groupby('Compte')[['Débit']].sum().reset_index()
-    produits = df_journal[df_journal['Compte'].str.startswith('7')].groupby('Compte')[['Crédit']].sum().reset_index()
+    charges = balance[balance['Compte'].astype(str).str.startswith('6')]
+    produits = balance[balance['Compte'].astype(str).str.startswith('7')]
 
     col1, col2 = st.columns(2)
     with col1:
         st.markdown("**Charges**")
-        st.dataframe(charges, use_container_width=True)
+        st.dataframe(charges[['Compte', 'Intitulé', 'Débit']], use_container_width=True)
         total_charges = charges['Débit'].sum()
+        st.metric("Total charges", f"{total_charges:.2f} €")
+
     with col2:
         st.markdown("**Produits**")
-        st.dataframe(produits, use_container_width=True)
+        st.dataframe(produits[['Compte', 'Intitulé', 'Crédit']], use_container_width=True)
         total_produits = produits['Crédit'].sum()
+        st.metric("Total produits", f"{total_produits:.2f} €")
 
     resultat = total_produits - total_charges
-    st.metric("Résultat", f"{resultat:.2f} €")
+    if resultat >= 0:
+        st.success(f"Résultat : bénéfice de {resultat:.2f} €")
+    else:
+        st.error(f"Résultat : perte de {abs(resultat):.2f} €")
 
-    st.divider()
-
-    # =====================
     # BILAN
-    # =====================
-    st.markdown("### 🏛️ Bilan")
-if st.button("❓ Expliquer ce document – Bilan"):
-    st.info("Le bilan présente la situation financière de l’entreprise à une date donnée. L’actif montre ce que possède l’entreprise, le passif ce qu’elle doit. Les deux totaux doivent toujours être égaux.")
-    balance['Solde'] = balance['Débit'] - balance['Crédit']
-
-    actif = balance[(balance['Solde'] > 0) & (balance['Compte'].str.startswith(('2','3','5','41')))]
-    passif = balance[(balance['Solde'] < 0) & (balance['Compte'].str.startswith(('1','4')))]
+    st.markdown("### 🧾 Bilan")
+    actif = balance[balance['Compte'].astype(str).str.startswith(('2','3','4','5'))][['Compte','Intitulé','Solde débiteur']]
+    passif = balance[balance['Compte'].astype(str).str.startswith(('1','4'))][['Compte','Intitulé','Solde créditeur']]
 
     col1, col2 = st.columns(2)
     with col1:
-        st.markdown("**ACTIF**")
-        st.dataframe(actif[['Compte','Solde']], use_container_width=True)
-        st.metric("Total Actif", f"{actif['Solde'].sum():.2f} €")
+        st.markdown("**Actif**")
+        st.dataframe(actif, use_container_width=True)
+        st.metric("Total actif", f"{actif['Solde débiteur'].sum():.2f} €")
 
     with col2:
-        st.markdown("**PASSIF**")
-        passif_display = passif.copy()
-        passif_display['Solde'] = passif_display['Solde'].abs()
-        st.dataframe(passif_display[['Compte','Solde']], use_container_width=True)
-        st.metric("Total Passif", f"{passif_display['Solde'].sum():.2f} €")
+        st.markdown("**Passif**")
+        st.dataframe(passif, use_container_width=True)
+        st.metric("Total passif", f"{passif['Solde créditeur'].sum():.2f} €")
+
+    # =====================
+    # BOUTON EXPLICATION ÉLÈVE
+    # =====================
+    if st.button("📖 Expliquer ces documents (version élève)"):
+        st.info("""
+        • Le **journal** liste toutes les écritures comptables par date.
+        • La **balance** vérifie que le total des débits est égal au total des crédits.
+        • Le **compte de résultat** montre si l'entreprise fait un bénéfice ou une perte.
+        • Le **bilan** présente ce que possède l'entreprise (actif) et ce qu'elle doit (passif).
+        """)
+else:
+    st.info("Aucune écriture enregistrée")
