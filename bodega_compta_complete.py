@@ -18,16 +18,75 @@ st.caption("Application de saisie comptable simplifiée pour élèves de lycée 
 # PLAN COMPTABLE (inchangé)
 # =====================
 PLAN_COMPTABLE = {
-    "401": "Fournisseurs",
+    # =====================
+    # ACTIF IMMOBILISÉ (LONG TERME)
+    # =====================
+    "205": "Logiciels",
+    "213": "Constructions",
+    "215": "Matériel",
+    "218": "Mobilier",
+
+    # =====================
+    # ACTIF CIRCULANT (COURT TERME)
+    # =====================
+    "31": "Stocks de matières",
+    "37": "Stocks de marchandises",
     "411": "Clients",
     "512": "Banque",
     "53": "Caisse",
-    "607": "Achats de marchandises",
-    "6061": "Eau – Électricité",
+
+    # =====================
+    # PASSIF (MOYEN / LONG TERME)
+    # =====================
+    "101": "Capital",
+    "164": "Emprunts",
+
+    # =====================
+    # PASSIF (COURT TERME)
+    # =====================
+    "401": "Fournisseurs",
+    "421": "Salaires à payer",
+    "445": "TVA",
+
+    # =====================
+    # CHARGES D'EXPLOITATION
+    # =====================
+    "601": "Achats stockés",
+    "606": "Charges externes",
+    "613": "Locations",
+    "615": "Entretien et réparations",
+    "616": "Assurances",
     "641": "Salaires",
     "645": "Charges sociales",
+
+    # =====================
+    # PRODUITS D'EXPLOITATION
+    # =====================
+    "701": "Ventes de produits",
     "706": "Prestations de services",
-    "701": "Ventes",
+    "707": "Ventes de marchandises",
+
+    # =====================
+    # CHARGES FINANCIÈRES
+    # =====================
+    "661": "Intérêts des emprunts",
+    "666": "Pertes de change",
+
+    # =====================
+    # PRODUITS FINANCIERS
+    # =====================
+    "761": "Produits de participations",
+    "766": "Gains de change",
+
+    # =====================
+    # CHARGES EXCEPTIONNELLES
+    # =====================
+    "671": "Charges exceptionnelles",
+
+    # =====================
+    # PRODUITS EXCEPTIONNELS
+    # =====================
+    "771": "Produits exceptionnels"
 }
 
 # =====================
