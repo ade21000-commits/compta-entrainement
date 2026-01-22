@@ -114,49 +114,174 @@ COMPTES_AMORTISSEMENTS = ["2805", "2806", "2807", "28131", "28154", "28182", "28
 if 'journal' not in st.session_state:
     st.session_state.journal = []
 
+if 'operation_en_cours' not in st.session_state:
+    st.session_state.operation_en_cours = []
+
+if 'date_op' not in st.session_state:
+    st.session_state.date_op = "01/01/2024"
+
+if 'libelle_op' not in st.session_state:
+    st.session_state.libelle_op = ""
+
+if 'num_piece_op' not in st.session_state:
+    st.session_state.num_piece_op = "OP001"
+
 # IDENTIFICATION
 st.header("👤 Identification")
 nom_eleve = st.text_input("Nom et Prénom de l'élève", placeholder="Ex: Dupont Marie")
 
-# SAISIE ÉCRITURE
-st.header("✏️ Saisie d'une écriture")
+# SAISIE OPÉRATION EN 2 BLOCS
+st.header("✏️ Saisie d'une opération comptable")
+
+st.subheader("📋 Bloc 1 : Informations de l'opération")
 
 col1, col2, col3 = st.columns(3)
 with col1:
-    date = st.text_input("Date", value="01/01/2024")
+    date_operation = st.text_input("Date", value=st.session_state.date_op, key="input_date")
 with col2:
-    libelle = st.text_input("Libellé")
+    libelle_operation = st.text_input("Libellé de l'opération", 
+                                      value=st.session_state.libelle_op,
+                                      placeholder="Ex: Achat filet de perche (10kg)",
+                                      key="input_libelle")
 with col3:
-    num_piece = st.text_input("N° Pièce", value="OP001")
+    num_piece = st.text_input("N° Pièce comptable", 
+                              value=st.session_state.num_piece_op,
+                              placeholder="Ex: 202336",
+                              key="input_piece")
 
-col4, col5, col6 = st.columns(3)
+# Mise à jour session_state
+st.session_state.date_op = date_operation
+st.session_state.libelle_op = libelle_operation
+st.session_state.num_piece_op = num_piece
+
+st.subheader("📝 Bloc 2 : Lignes comptables de l'opération")
+
+# Afficher les lignes en cours
+if len(st.session_state.operation_en_cours) > 0:
+    st.markdown("**Lignes ajoutées à cette opération :**")
+    
+    for idx, ligne in enumerate(st.session_state.operation_en_cours):
+        col1, col2, col3, col4, col5 = st.columns([1.5, 4, 2, 2, 0.8])
+        
+        with col1:
+            st.text(ligne['Compte'])
+        with col2:
+            st.text(ligne['Libellé ligne'])
+        with col3:
+            st.text(f"{ligne['Débit']:.2f} €" if ligne['Débit'] > 0 else "")
+        with col4:
+            st.text(f"{ligne['Crédit']:.2f} €" if ligne['Crédit'] > 0 else "")
+        with col5:
+            if st.button("🗑️", key=f"del_ligne_{idx}"):
+                st.session_state.operation_en_cours.pop(idx)
+                st.rerun()
+    
+    # Totaux
+    total_debit_op = sum([l['Débit'] for l in st.session_state.operation_en_cours])
+    total_credit_op = sum([l['Crédit'] for l in st.session_state.operation_en_cours])
+    
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Total Débit", f"{total_debit_op:.2f} €")
+    with col2:
+        st.metric("Total Crédit", f"{total_credit_op:.2f} €")
+    with col3:
+        if abs(total_debit_op - total_credit_op) < 0.01:
+            st.success("✓ ÉQUILIBRÉ")
+        else:
+            st.error(f"✗ Écart : {abs(total_debit_op - total_credit_op):.2f} €")
+    
+    st.markdown("---")
+
+# Ajout d'une ligne
+st.markdown("**Ajouter une ligne :**")
+
+col1, col2, col3, col4 = st.columns([2, 4, 2, 2])
+
+with col1:
+    compte_ligne = st.selectbox("Compte", 
+                                options=sorted(PLAN_COMPTABLE.keys()),
+                                format_func=lambda x: f"{x} - {PLAN_COMPTABLE[x]}",
+                                key="select_compte")
+
+with col2:
+    libelle_ligne = st.text_input("Libellé de la ligne", 
+                                  placeholder="Ex: Achat marchandise filet de perche",
+                                  key="input_libelle_ligne")
+
+with col3:
+    debit_ligne = st.number_input("Débit", min_value=0.0, value=0.0, step=10.0, key="input_debit")
+
 with col4:
-    compte = st.selectbox("Compte", options=sorted(PLAN_COMPTABLE.keys()), 
-                          format_func=lambda x: f"{x} - {PLAN_COMPTABLE[x]}")
-with col5:
-    debit = st.number_input("Débit", min_value=0.0, value=0.0, step=10.0)
-with col6:
-    credit = st.number_input("Crédit", min_value=0.0, value=0.0, step=10.0)
+    credit_ligne = st.number_input("Crédit", min_value=0.0, value=0.0, step=10.0, key="input_credit")
 
-col_btn1, col_btn2 = st.columns([1, 4])
+col_btn1, col_btn2, col_btn3 = st.columns([1, 1, 3])
+
 with col_btn1:
-    if st.button("➕ Ajouter", type="primary", use_container_width=True):
-        st.session_state.journal.append({
-            "Date": date,
-            "Libellé": libelle,
-            "N° Pièce": num_piece,
-            "Compte": compte,
-            "Intitulé": PLAN_COMPTABLE[compte],
-            "Débit": debit,
-            "Crédit": credit
-        })
-        st.success("Écriture ajoutée !")
-        st.rerun()
+    if st.button("➕ Ajouter la ligne", type="secondary", use_container_width=True):
+        if libelle_ligne.strip() == "":
+            st.error("⚠️ Le libellé de la ligne est obligatoire")
+        elif debit_ligne == 0 and credit_ligne == 0:
+            st.error("⚠️ Veuillez saisir un montant en débit OU en crédit")
+        elif debit_ligne > 0 and credit_ligne > 0:
+            st.error("⚠️ Une ligne ne peut pas avoir à la fois un débit ET un crédit")
+        else:
+            st.session_state.operation_en_cours.append({
+                'Compte': compte_ligne,
+                'Libellé ligne': libelle_ligne,
+                'Débit': debit_ligne,
+                'Crédit': credit_ligne
+            })
+            st.rerun()
 
 with col_btn2:
-    if len(st.session_state.journal) > 0:
-        if st.button("🗑️ Effacer tout le journal", type="secondary", use_container_width=True):
-            st.session_state.journal = []
+    if len(st.session_state.operation_en_cours) > 0:
+        total_debit_op = sum([l['Débit'] for l in st.session_state.operation_en_cours])
+        total_credit_op = sum([l['Crédit'] for l in st.session_state.operation_en_cours])
+        
+        equilibre = abs(total_debit_op - total_credit_op) < 0.01
+        
+        if st.button("✅ Valider l'opération", 
+                    type="primary", 
+                    disabled=not equilibre,
+                    use_container_width=True):
+            
+            if not libelle_operation.strip():
+                st.error("⚠️ Le libellé de l'opération est obligatoire")
+            else:
+                # Ajouter toutes les lignes au journal
+                for ligne in st.session_state.operation_en_cours:
+                    st.session_state.journal.append({
+                        "Date": date_operation,
+                        "Libellé opération": libelle_operation,
+                        "N° Pièce": num_piece,
+                        "Compte": ligne['Compte'],
+                        "Intitulé compte": PLAN_COMPTABLE[ligne['Compte']],
+                        "Libellé ligne": ligne['Libellé ligne'],
+                        "Débit": ligne['Débit'],
+                        "Crédit": ligne['Crédit']
+                    })
+                
+                # Réinitialiser
+                st.session_state.operation_en_cours = []
+                
+                # Incrémenter le numéro de pièce
+                try:
+                    num_part = ''.join(filter(str.isdigit, num_piece))
+                    text_part = ''.join(filter(str.isalpha, num_piece))
+                    if num_part:
+                        new_num = int(num_part) + 1
+                        st.session_state.num_piece_op = f"{text_part}{new_num:06d}" if text_part else f"OP{new_num:03d}"
+                except:
+                    pass
+                
+                st.success("✅ Opération enregistrée dans le journal !")
+                st.rerun()
+
+with col_btn3:
+    if len(st.session_state.operation_en_cours) > 0:
+        if st.button("❌ Annuler l'opération", type="secondary", use_container_width=True):
+            st.session_state.operation_en_cours = []
             st.rerun()
 
 # JOURNAL - TOUJOURS VISIBLE
@@ -172,36 +297,41 @@ if len(st.session_state.journal) > 0:
     with col2:
         st.metric("📋 Opérations", nb_operations)
     
-    # Affichage avec boutons de suppression
-    for idx, ecriture in enumerate(st.session_state.journal):
-        col1, col2, col3, col4, col5, col6, col7, col8 = st.columns([1.5, 3, 2, 1.5, 4, 2, 2, 0.8])
-        
-        with col1:
-            st.text(ecriture['Date'])
-        with col2:
-            st.text(ecriture['Libellé'])
-        with col3:
-            st.text(ecriture['N° Pièce'])
-        with col4:
-            st.text(ecriture['Compte'])
-        with col5:
-            st.text(ecriture['Intitulé'])
-        with col6:
-            st.text(f"{ecriture['Débit']:.2f} €" if ecriture['Débit'] > 0 else "")
-        with col7:
-            st.text(f"{ecriture['Crédit']:.2f} €" if ecriture['Crédit'] > 0 else "")
-        with col8:
-            if st.button("🗑️", key=f"del_{idx}"):
-                st.session_state.journal.pop(idx)
-                st.rerun()
-    
-    st.markdown("---")
-    
+    # Grouper par opération pour affichage
     df_journal = pd.DataFrame(st.session_state.journal)
-    equilibre_par_operation = df_journal.groupby('N° Pièce').apply(
-        lambda x: "✓ OK" if x['Débit'].sum() == x['Crédit'].sum() else "✗ ERREUR"
-    )
-    df_journal['Équilibre'] = df_journal['N° Pièce'].map(equilibre_par_operation)
+    
+    operations = df_journal.groupby('N° Pièce')
+    
+    for num_piece, group in operations:
+        # En-tête opération
+        premiere_ligne = group.iloc[0]
+        st.markdown(f"**{premiere_ligne['Date']}** - {premiere_ligne['Libellé opération']} - *Pièce {num_piece}*")
+        
+        # Lignes de l'opération
+        for idx, row in group.iterrows():
+            col1, col2, col3, col4, col5 = st.columns([1.5, 4, 3, 2, 2])
+            
+            with col1:
+                st.text(row['Compte'])
+            with col2:
+                st.text(row['Intitulé compte'])
+            with col3:
+                st.text(row['Libellé ligne'])
+            with col4:
+                st.text(f"{row['Débit']:.2f} €" if row['Débit'] > 0 else "")
+            with col5:
+                st.text(f"{row['Crédit']:.2f} €" if row['Crédit'] > 0 else "")
+        
+        # Vérifier équilibre opération
+        total_d = group['Débit'].sum()
+        total_c = group['Crédit'].sum()
+        
+        if abs(total_d - total_c) < 0.01:
+            st.success(f"✓ Opération équilibrée : {total_d:.2f} €")
+        else:
+            st.error(f"✗ Opération déséquilibrée : écart de {abs(total_d - total_c):.2f} €")
+        
+        st.markdown("---")
     
     total_debit = df_journal['Débit'].sum()
     total_credit = df_journal['Crédit'].sum()
@@ -212,7 +342,7 @@ if len(st.session_state.journal) > 0:
     with col2:
         st.metric("Total Crédit", f"{total_credit:.2f} €")
     with col3:
-        if total_debit == total_credit:
+        if abs(total_debit - total_credit) < 0.01:
             st.success("✓ JOURNAL ÉQUILIBRÉ")
         else:
             st.error(f"✗ DÉSÉQUILIBRÉ : {abs(total_debit - total_credit):.2f} €")
@@ -221,7 +351,7 @@ if len(st.session_state.journal) > 0:
     if nb_ecritures >= 2:
         st.header("⚖️ Balance")
         
-        balance = df_journal.groupby(['Compte', 'Intitulé']).agg({
+        balance = df_journal.groupby(['Compte', 'Intitulé compte']).agg({
             'Débit': 'sum',
             'Crédit': 'sum'
         }).reset_index()
@@ -251,6 +381,52 @@ if len(st.session_state.journal) > 0:
             else:
                 st.error(f"✗ DÉSÉQUILIBRÉE : {abs(total_solde_debiteur - total_solde_crediteur):.2f} €")
     
+    # GRAND LIVRE
+    if nb_ecritures >= 1:
+        st.header("📚 Grand Livre")
+        
+        # Sélection compte
+        comptes_utilises = sorted(df_journal['Compte'].unique())
+        
+        compte_selectionne = st.selectbox(
+            "Sélectionnez un compte à afficher",
+            options=comptes_utilises,
+            format_func=lambda x: f"{x} - {PLAN_COMPTABLE[x]}"
+        )
+        
+        if compte_selectionne:
+            st.subheader(f"Compte {compte_selectionne} - {PLAN_COMPTABLE[compte_selectionne]}")
+            
+            # Filtrer les écritures du compte
+            ecritures_compte = df_journal[df_journal['Compte'] == compte_selectionne].copy()
+            
+            # Calculer le solde progressif
+            ecritures_compte['Mouvement Débit'] = ecritures_compte['Débit']
+            ecritures_compte['Mouvement Crédit'] = ecritures_compte['Crédit']
+            ecritures_compte['Solde'] = (ecritures_compte['Débit'] - ecritures_compte['Crédit']).cumsum()
+            
+            # Afficher
+            colonnes_affichage = ['Date', 'Libellé opération', 'N° Pièce', 'Libellé ligne', 
+                                 'Mouvement Débit', 'Mouvement Crédit', 'Solde']
+            
+            st.dataframe(ecritures_compte[colonnes_affichage], use_container_width=True, hide_index=True)
+            
+            # Totaux et solde final
+            total_debit_compte = ecritures_compte['Débit'].sum()
+            total_credit_compte = ecritures_compte['Crédit'].sum()
+            solde_final = total_debit_compte - total_credit_compte
+            
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Total Débit", f"{total_debit_compte:.2f} €")
+            with col2:
+                st.metric("Total Crédit", f"{total_credit_compte:.2f} €")
+            with col3:
+                if solde_final >= 0:
+                    st.metric("Solde final", f"{solde_final:.2f} €", help="Solde débiteur")
+                else:
+                    st.metric("Solde final", f"{abs(solde_final):.2f} €", delta="Créditeur", help="Solde créditeur")
+    
     # COMPTE DE RÉSULTAT - SI AU MOINS 1 CHARGE OU 1 PRODUIT
     has_charges = any(e['Compte'] in COMPTES_CHARGES for e in st.session_state.journal)
     has_produits = any(e['Compte'] in COMPTES_PRODUITS for e in st.session_state.journal)
@@ -258,12 +434,12 @@ if len(st.session_state.journal) > 0:
     if has_charges or has_produits:
         st.header("💰 Compte de résultat")
         
-        charges = df_journal[df_journal['Compte'].isin(COMPTES_CHARGES)].groupby(['Compte', 'Intitulé']).agg({
+        charges = df_journal[df_journal['Compte'].isin(COMPTES_CHARGES)].groupby(['Compte', 'Intitulé compte']).agg({
             'Débit': 'sum'
         }).reset_index()
         charges.columns = ['Compte', 'Intitulé', 'Montant']
         
-        produits = df_journal[df_journal['Compte'].isin(COMPTES_PRODUITS)].groupby(['Compte', 'Intitulé']).agg({
+        produits = df_journal[df_journal['Compte'].isin(COMPTES_PRODUITS)].groupby(['Compte', 'Intitulé compte']).agg({
             'Crédit': 'sum'
         }).reset_index()
         produits.columns = ['Compte', 'Intitulé', 'Montant']
@@ -307,18 +483,18 @@ if len(st.session_state.journal) > 0:
     if has_actif and has_passif and nb_ecritures >= 2:
         st.header("📊 Bilan simplifié")
         
-        actif = balance[balance['Compte'].isin(COMPTES_ACTIF)][['Compte', 'Intitulé', 'Solde Débiteur']].copy()
+        actif = balance[balance['Compte'].isin(COMPTES_ACTIF)][['Compte', 'Intitulé compte', 'Solde Débiteur']].copy()
         actif.columns = ['Compte', 'Intitulé', 'Montant']
         actif = actif[actif['Montant'] > 0]
         
         # Soustraire les amortissements
-        amortissements = balance[balance['Compte'].isin(COMPTES_AMORTISSEMENTS)][['Compte', 'Intitulé', 'Solde Créditeur']].copy()
+        amortissements = balance[balance['Compte'].isin(COMPTES_AMORTISSEMENTS)][['Compte', 'Intitulé compte', 'Solde Créditeur']].copy()
         if len(amortissements) > 0:
             amortissements.columns = ['Compte', 'Intitulé', 'Montant']
             amortissements['Montant'] = -amortissements['Montant']
             actif = pd.concat([actif, amortissements], ignore_index=True)
         
-        passif = balance[balance['Compte'].isin(COMPTES_PASSIF)][['Compte', 'Intitulé', 'Solde Créditeur']].copy()
+        passif = balance[balance['Compte'].isin(COMPTES_PASSIF)][['Compte', 'Intitulé compte', 'Solde Créditeur']].copy()
         passif.columns = ['Compte', 'Intitulé', 'Montant']
         passif = passif[passif['Montant'] > 0]
         
@@ -363,6 +539,13 @@ if len(st.session_state.journal) > 0:
             st.success(f"✅ BILAN ÉQUILIBRÉ : {total_actif:.2f} €")
         else:
             st.error(f"❌ BILAN DÉSÉQUILIBRÉ : Écart de {abs(total_actif - total_passif):.2f} €")
+    
+    # BOUTON EFFACER TOUT
+    st.markdown("---")
+    if st.button("🗑️ Effacer tout le journal", type="secondary"):
+        st.session_state.journal = []
+        st.session_state.operation_en_cours = []
+        st.rerun()
     
     # EXPORT
     st.header("📥 Export des résultats")
@@ -432,11 +615,11 @@ if len(st.session_state.journal) > 0:
         st.warning("⚠️ Veuillez saisir votre nom en haut de la page pour télécharger")
     
 else:
-    st.info("👆 Commencez par saisir des écritures comptables ci-dessus")
+    st.info("👆 Commencez par saisir une opération comptable ci-dessus")
     st.markdown("""
     **Guide rapide :**
-    - Journal : visible dès la 1ère écriture
-    - Balance : visible à partir de 2 écritures
-    - Compte de résultat : visible dès qu'il y a une charge OU un produit
-    - Bilan : visible dès qu'il y a au moins 1 compte actif ET 1 compte passif
+    1. Remplissez les informations de l'opération (Date, Libellé, N° Pièce)
+    2. Ajoutez les lignes comptables une par une
+    3. Validez l'opération quand Débit = Crédit
+    4. Consultez le Journal, la Balance, le Grand Livre, le Compte de résultat et le Bilan
     """)
