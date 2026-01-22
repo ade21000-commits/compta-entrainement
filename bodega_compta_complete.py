@@ -67,28 +67,46 @@ st.divider()
 # =====================
 st.subheader("2️⃣ Lignes comptables")
 
-with st.expander("➕ Ajouter une ligne", expanded=True):
-    compte = st.selectbox(
-        "Compte",
+with st.expander("➕ Ajouter une opération (effet miroir débit / crédit)", expanded=True):
+    st.markdown("**Ligne 1 : Débit**")
+    col1, col2 = st.columns(2)
+    with col1:
+        compte_debit = st.selectbox(
+            "Compte débité",
+            options=list(PLAN_COMPTABLE.keys()),
+            format_func=lambda x: f"{x} – {PLAN_COMPTABLE[x]}",
+            key="compte_debit"
+        )
+    with col2:
+        montant = st.number_input("Montant", min_value=0.0, step=10.0)
+
+    st.markdown("**Ligne 2 : Crédit**")
+    compte_credit = st.selectbox(
+        "Compte crédité",
         options=list(PLAN_COMPTABLE.keys()),
-        format_func=lambda x: f"{x} – {PLAN_COMPTABLE[x]}"
+        format_func=lambda x: f"{x} – {PLAN_COMPTABLE[x]}",
+        key="compte_credit"
     )
 
-    sens = st.radio("Sens", ["Débit", "Crédit"], horizontal=True)
-
-    montant = st.number_input("Montant", min_value=0.0, step=10.0)
-
-    if st.button("Ajouter la ligne"):
+    if st.button("Ajouter l'opération"):
         if montant == 0:
             st.error("Veuillez saisir un montant")
+        elif compte_debit == compte_credit:
+            st.error("Les comptes débit et crédit doivent être différents")
         else:
             st.session_state.operation.append({
-                "Compte": compte,
-                "Intitulé": PLAN_COMPTABLE[compte],
-                "Débit": montant if sens == "Débit" else 0,
-                "Crédit": montant if sens == "Crédit" else 0
+                "Compte": compte_debit,
+                "Intitulé": PLAN_COMPTABLE[compte_debit],
+                "Débit": montant,
+                "Crédit": 0
             })
-            st.success("Ligne ajoutée")
+            st.session_state.operation.append({
+                "Compte": compte_credit,
+                "Intitulé": PLAN_COMPTABLE[compte_credit],
+                "Débit": 0,
+                "Crédit": montant
+            })
+            st.success("Opération ajoutée (effet miroir respecté)")
 
 # =====================
 # AFFICHAGE DES LIGNES
