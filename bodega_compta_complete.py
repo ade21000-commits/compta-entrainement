@@ -214,3 +214,95 @@ if st.session_state.journal:
     st.dataframe(df_journal, use_container_width=True)
 else:
     st.info("Aucune écriture enregistrée")
+
+st.divider()
+
+# =====================
+# ÉTATS COMPTABLES
+# =====================
+st.subheader("📊 États comptables")
+
+col1, col2, col3, col4 = st.columns(4)
+with col1:
+    show_gl = st.button("📚 Grand livre")
+with col2:
+    show_balance = st.button("⚖️ Balance")
+with col3:
+    show_cr = st.button("💰 Compte de résultat")
+with col4:
+    show_bilan = st.button("🏛️ Bilan")
+
+# =====================
+# GRAND LIVRE
+# =====================
+if st.session_state.journal and show_gl:
+    st.markdown("### 📚 Grand livre")
+    comptes = sorted(df_journal['Compte'].unique())
+    compte_sel = st.selectbox("Compte", comptes)
+    gl = df_journal[df_journal['Compte'] == compte_sel].copy()
+    gl['Solde'] = (gl['Débit'] - gl['Crédit']).cumsum()
+    st.dataframe(gl[['Date', 'Pièce', 'Libellé', 'Débit', 'Crédit', 'Solde']], use_container_width=True)
+
+# =====================
+# BALANCE
+# =====================
+if st.session_state.journal and show_balance:
+    st.markdown("### ⚖️ Balance comptable")
+    balance = df_journal.groupby('Compte').agg({'Débit': 'sum', 'Crédit': 'sum'}).reset_index()
+    balance['Solde débiteur'] = balance.apply(lambda r: r['Débit'] - r['Crédit'] if r['Débit'] > r['Crédit'] else 0, axis=1)
+    balance['Solde créditeur'] = balance.apply(lambda r: r['Crédit'] - r['Débit'] if r['Crédit'] > r['Débit'] else 0, axis=1)
+    st.dataframe(balance, use_container_width=True)
+
+# =====================
+# COMPTE DE RÉSULTAT
+# =====================
+if st.session_state.journal and show_cr:
+    st.markdown("### 💰 Compte de résultat")
+    charges = df_journal[df_journal['Compte'].str.startswith('6')].groupby('Compte')[['Débit']].sum().reset_index()
+    produits = df_journal[df_journal['Compte'].str.startswith('7')].groupby('Compte')[['Crédit']].sum().reset_index()
+
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown("**Charges**")
+        st.dataframe(charges, use_container_width=True)
+        total_charges = charges['Débit'].sum()
+    with col2:
+        st.markdown("**Produits**")
+        st.dataframe(produits, use_container_width=True)
+        total_produits = produits['Crédit'].sum()
+
+    resultat = total_produits - total_charges
+    if resultat >= 0:
+        st.success(f"Résultat : Bénéfice de {resultat:.2f} €")
+    else:
+        st.error(f"Résultat : Perte de {abs(resultat):.2f} €")
+
+# =====================
+# BILAN
+# =====================
+if st.session_state.journal and show_bilan:
+    st.markdown("### 🏛️ Bilan")
+    balance = df_journal.groupby('Compte').agg({'Débit': 'sum', 'Crédit': 'sum'}).reset_index()
+    balance['Solde'] = balance['Débit'] - balance['Crédit']
+
+    actif = balance[(balance['Solde'] > 0) & (balance['Compte'].str.startswith(('2','3','5','41')))]
+    passif = balance[(balance['Solde'] < 0) & (balance['Compte'].str.startswith(('1','4')))]
+
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown("**ACTIF**")
+        st.dataframe(actif[['Compte','Solde']], use_container_width=True)
+        total_actif = actif['Solde'].sum()
+        st.metric("Total Actif", f"{total_actif:.2f} €")
+    with col2:
+        st.markdown("**PASSIF**")
+        passif_display = passif.copy()
+        passif_display['Solde'] = passif_display['Solde'].abs()
+        st.dataframe(passif_display[['Compte','Solde']], use_container_width=True)
+        total_passif = passif_display['Solde'].sum()
+        st.metric("Total Passif", f"{total_passif:.2f} €")
+
+    if abs(total_actif - total_passif) < 0.01:
+        st.success("Bilan équilibré")
+    else:
+        st.error("Bilan déséquilibré")
