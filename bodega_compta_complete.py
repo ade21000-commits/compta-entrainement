@@ -211,4 +211,3 @@ else:
     nom_fic = f"{(st.session_state.eleve or 'Eleve').replace(' ','_')}_Bodega_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx"
     st.download_button("Télécharger (Excel)", data=output, file_name=nom_fic,
                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", type="primary")
-``
