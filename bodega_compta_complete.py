@@ -1,9 +1,7 @@
-# BODEGA – Application de comptabilité pédagogique (version stabilisée)
+# BODEGA – Application de comptabilité pédagogique (VERSION FINALE STABLE)
 # Public : Élèves de Bac Pro
-# Objectifs :
-# - Comprendre la logique débit / crédit (effet miroir)
-# - Saisir, corriger et supprimer des écritures
-# - Visualiser automatiquement journal, grand livre, balance, CR et bilan
+# Principe : saisie miroir débit / crédit sur DEUX LIGNES VISUELLES
+# ⚠️ La structure de saisie ne doit PLUS être modifiée
 
 import streamlit as st
 import pandas as pd
@@ -12,10 +10,10 @@ from datetime import date
 st.set_page_config(page_title="BODEGA – Comptabilité pédagogique", layout="centered")
 
 st.title("BODEGA – Comptabilité pédagogique")
-st.caption("Tu saisis comme sur papier, l'application fait les calculs pour toi")
+st.caption("Tu saisis comme sur ta feuille, l'application calcule pour toi")
 
 # =====================
-# PLAN COMPTABLE SIMPLIFIÉ
+# PLAN COMPTABLE (NUMÉRO + INTITULÉ)
 # =====================
 PLAN_COMPTABLE = {
     "101": "Capital",
@@ -48,17 +46,16 @@ PLAN_COMPTABLE = {
     "771": "Produits exceptionnels"
 }
 
+COMPTES_AFFICHAGE = [f"{k} – {v}" for k, v in PLAN_COMPTABLE.items()]
+
 # =====================
 # SESSION STATE
 # =====================
 if "journal" not in st.session_state:
     st.session_state.journal = []
 
-if "operation" not in st.session_state:
-    st.session_state.operation = []
-
 # =====================
-# SAISIE D'UNE OPÉRATION (BLOC FIGÉ)
+# SAISIE D'UNE OPÉRATION (STRUCTURE VALIDÉE)
 # =====================
 st.subheader("📝 Saisie d'une opération")
 
@@ -68,28 +65,35 @@ with col1:
 with col2:
     piece = st.text_input("N° de pièce")
 with col3:
-    libelle_op = st.text_input("Libellé de l'opération")
+    libelle = st.text_input("Libellé de l'opération")
 
-st.markdown("**Lignes comptables (effet miroir débit / crédit)**")
+st.markdown("### Écriture comptable (effet miroir)")
 
-c1, c2 = st.columns(2)
+# ----- LIGNE DÉBIT -----
+st.markdown("**Débit**")
+col_d1, col_d2 = st.columns([3, 1])
+with col_d1:
+    compte_d_aff = st.selectbox("Compte débité", COMPTES_AFFICHAGE, key="cd")
+with col_d2:
+    montant_d = st.number_input("Montant", min_value=0.0, step=1.0, key="md")
 
-with c1:
-    st.markdown("### 🔵 Débit")
-    compte_d = st.selectbox("Compte débit", PLAN_COMPTABLE.keys(), key="cd")
-    montant_d = st.number_input("Montant débit", min_value=0.0, step=1.0, key="md")
+# ----- LIGNE CRÉDIT -----
+st.markdown("**Crédit**")
+col_c1, col_c2 = st.columns([3, 1])
+with col_c1:
+    compte_c_aff = st.selectbox("Compte crédité", COMPTES_AFFICHAGE, key="cc")
+with col_c2:
+    montant_c = st.number_input("Montant ", min_value=0.0, step=1.0, key="mc")
 
-with c2:
-    st.markdown("### 🔴 Crédit")
-    compte_c = st.selectbox("Compte crédit", PLAN_COMPTABLE.keys(), key="cc")
-    montant_c = st.number_input("Montant crédit", min_value=0.0, step=1.0, key="mc")
-
-if st.button("➕ Ajouter l'écriture"):
+if st.button("➕ Enregistrer l'écriture"):
     if montant_d == montant_c and montant_d > 0:
+        compte_d = compte_d_aff.split(" – ")[0]
+        compte_c = compte_c_aff.split(" – ")[0]
+
         st.session_state.journal.append({
             "Date": date_op,
             "Pièce": piece,
-            "Libellé": libelle_op,
+            "Libellé": libelle,
             "Compte": compte_d,
             "Intitulé": PLAN_COMPTABLE[compte_d],
             "Débit": montant_d,
@@ -98,20 +102,20 @@ if st.button("➕ Ajouter l'écriture"):
         st.session_state.journal.append({
             "Date": date_op,
             "Pièce": piece,
-            "Libellé": libelle_op,
+            "Libellé": libelle,
             "Compte": compte_c,
             "Intitulé": PLAN_COMPTABLE[compte_c],
             "Débit": 0,
             "Crédit": montant_c
         })
-        st.success("Écriture ajoutée")
+        st.success("Écriture enregistrée")
     else:
         st.error("Le débit doit être égal au crédit")
 
 st.divider()
 
 # =====================
-# JOURNAL COMPTABLE
+# JOURNAL COMPTABLE (MODIFIABLE)
 # =====================
 st.subheader("📒 Journal comptable")
 
@@ -119,20 +123,24 @@ if st.session_state.journal:
     df = pd.DataFrame(st.session_state.journal)
     st.dataframe(df, use_container_width=True)
 
-    index_suppr = st.number_input("Numéro de ligne à supprimer", min_value=0, max_value=len(df)-1, step=1)
+    ligne = st.number_input("Numéro de ligne à supprimer", min_value=0, max_value=len(df)-1, step=1)
     if st.button("🗑️ Supprimer la ligne"):
-        st.session_state.journal.pop(index_suppr)
+        st.session_state.journal.pop(ligne)
         st.experimental_rerun()
 
 # =====================
-# ÉTATS COMPTABLES
+# ÉTATS COMPTABLES ESSENTIELS
 # =====================
 if st.session_state.journal:
     st.divider()
+
     st.subheader("📚 Grand livre")
-    balance = df.groupby(["Compte", "Intitulé"]).agg({"Débit": "sum", "Crédit": "sum"}).reset_index()
-    compte_sel = st.selectbox("Choisis un compte", balance["Compte"])
-    gl = df[df["Compte"] == compte_sel].copy()
+    balance = df.groupby(["Compte", "Intitulé"], as_index=False).sum()
+    balance["Affichage"] = balance["Compte"] + " – " + balance["Intitulé"]
+    compte_sel = st.selectbox("Choisis un compte", balance["Affichage"])
+    num_compte = compte_sel.split(" – ")[0]
+
+    gl = df[df["Compte"] == num_compte].copy()
     gl["Solde"] = (gl["Débit"] - gl["Crédit"]).cumsum()
     st.dataframe(gl, use_container_width=True)
 
@@ -140,31 +148,33 @@ if st.session_state.journal:
     st.subheader("⚖️ Balance")
     balance["Solde débiteur"] = (balance["Débit"] - balance["Crédit"]).clip(lower=0)
     balance["Solde créditeur"] = (balance["Crédit"] - balance["Débit"]).clip(lower=0)
-    st.dataframe(balance, use_container_width=True)
+    st.dataframe(balance[["Compte","Intitulé","Débit","Crédit","Solde débiteur","Solde créditeur"]], use_container_width=True)
 
     st.divider()
     st.subheader("💰 Compte de résultat")
     charges = balance[balance["Compte"].str.startswith("6")]["Débit"].sum()
     produits = balance[balance["Compte"].str.startswith("7")]["Crédit"].sum()
     resultat = produits - charges
+
     st.write(f"Total charges : {charges:.2f} €")
     st.write(f"Total produits : {produits:.2f} €")
     st.success(f"Résultat : {resultat:.2f} €" if resultat >= 0 else f"Résultat : {resultat:.2f} €")
 
     st.divider()
     st.subheader("🧾 Bilan")
-    actif = balance[balance["Compte"].str.startswith(("2", "3", "5"))]["Solde débiteur"].sum()
-    passif = balance[balance["Compte"].str.startswith(("1", "4"))]["Solde créditeur"].sum()
+    actif = balance[balance["Compte"].str.startswith(("2","3","5"))]["Solde débiteur"].sum()
+    passif = balance[balance["Compte"].str.startswith(("1","4"))]["Solde créditeur"].sum()
+
     st.write(f"Total actif : {actif:.2f} €")
     st.write(f"Total passif : {passif:.2f} €")
 
-    st.divider()
     with st.expander("📖 Expliquer ce document (version élève)"):
         st.markdown("""
         - Tu saisis une opération avec **un débit et un crédit du même montant**.
-        - Le **journal** enregistre toutes les écritures.
-        - Le **grand livre** montre l'évolution d'un compte.
-        - La **balance** vérifie que tout est équilibré.
-        - Le **compte de résultat** calcule le bénéfice ou la perte.
-        - Le **bilan** montre ce que l'entreprise possède et doit.
+        - Chaque compte a un **numéro et un intitulé**, comme au bac.
+        - Le journal enregistre tout.
+        - Le grand livre suit chaque compte.
+        - La balance vérifie l'équilibre.
+        - Le compte de résultat calcule le bénéfice ou la perte.
+        - Le bilan montre ce que l'entreprise possède et doit.
         """)
