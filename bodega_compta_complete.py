@@ -211,74 +211,19 @@ st.subheader("📘 Journal comptable")
 
 if st.session_state.journal:
     df_journal = pd.DataFrame(st.session_state.journal)
-    st.dataframe(df_journal, use_container_width=True)
 
-    st.divider()
+    # Regroupement par pièce
+    for piece, groupe in df_journal.groupby('Pièce'):
+        st.markdown(f"**Pièce {piece} – {groupe.iloc[0]['Libellé']} ({groupe.iloc[0]['Date']})**")
+        st.dataframe(groupe[['Compte','Intitulé','Débit','Crédit']], use_container_width=True, hide_index=True)
 
-    # =====================
-    # ÉTATS COMPTABLES
-    # =====================
-    st.subheader("📊 États comptables")
+        if st.button(f"🗑️ Supprimer la pièce {piece}", key=f"del_{piece}"):
+            st.session_state.journal = [
+                e for e in st.session_state.journal if e['Pièce'] != piece
+            ]
+            st.success("Opération supprimée")
+            st.rerun()
 
-    # BALANCE
-    st.markdown("### ⚖️ Balance")
-    balance = df_journal.groupby(['Compte', 'Intitulé']).agg({
-        'Débit': 'sum',
-        'Crédit': 'sum'
-    }).reset_index()
-    balance['Solde débiteur'] = (balance['Débit'] - balance['Crédit']).clip(lower=0)
-    balance['Solde créditeur'] = (balance['Crédit'] - balance['Débit']).clip(lower=0)
-    st.dataframe(balance, use_container_width=True)
-
-    # COMPTE DE RÉSULTAT
-    st.markdown("### 💰 Compte de résultat")
-    charges = balance[balance['Compte'].astype(str).str.startswith('6')]
-    produits = balance[balance['Compte'].astype(str).str.startswith('7')]
-
-    col1, col2 = st.columns(2)
-    with col1:
-        st.markdown("**Charges**")
-        st.dataframe(charges[['Compte', 'Intitulé', 'Débit']], use_container_width=True)
-        total_charges = charges['Débit'].sum()
-        st.metric("Total charges", f"{total_charges:.2f} €")
-
-    with col2:
-        st.markdown("**Produits**")
-        st.dataframe(produits[['Compte', 'Intitulé', 'Crédit']], use_container_width=True)
-        total_produits = produits['Crédit'].sum()
-        st.metric("Total produits", f"{total_produits:.2f} €")
-
-    resultat = total_produits - total_charges
-    if resultat >= 0:
-        st.success(f"Résultat : bénéfice de {resultat:.2f} €")
-    else:
-        st.error(f"Résultat : perte de {abs(resultat):.2f} €")
-
-    # BILAN
-    st.markdown("### 🧾 Bilan")
-    actif = balance[balance['Compte'].astype(str).str.startswith(('2','3','4','5'))][['Compte','Intitulé','Solde débiteur']]
-    passif = balance[balance['Compte'].astype(str).str.startswith(('1','4'))][['Compte','Intitulé','Solde créditeur']]
-
-    col1, col2 = st.columns(2)
-    with col1:
-        st.markdown("**Actif**")
-        st.dataframe(actif, use_container_width=True)
-        st.metric("Total actif", f"{actif['Solde débiteur'].sum():.2f} €")
-
-    with col2:
-        st.markdown("**Passif**")
-        st.dataframe(passif, use_container_width=True)
-        st.metric("Total passif", f"{passif['Solde créditeur'].sum():.2f} €")
-
-    # =====================
-    # BOUTON EXPLICATION ÉLÈVE
-    # =====================
-    if st.button("📖 Expliquer ces documents (version élève)"):
-        st.info("""
-        • Le **journal** liste toutes les écritures comptables par date.
-        • La **balance** vérifie que le total des débits est égal au total des crédits.
-        • Le **compte de résultat** montre si l'entreprise fait un bénéfice ou une perte.
-        • Le **bilan** présente ce que possède l'entreprise (actif) et ce qu'elle doit (passif).
-        """)
+        st.divider()
 else:
     st.info("Aucune écriture enregistrée")
