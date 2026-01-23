@@ -135,7 +135,7 @@ if st.session_state.journal:
     st.divider()
 
     st.subheader("📚 Grand livre")
-    balance = df.groupby(["Compte", "Intitulé"], as_index=False).sum()
+    balance = df.groupby(["Compte", "Intitulé"], as_index=False)[['Débit', 'Crédit']].sum()
     balance["Affichage"] = balance["Compte"] + " – " + balance["Intitulé"]
     compte_sel = st.selectbox("Choisis un compte", balance["Affichage"])
     num_compte = compte_sel.split(" – ")[0]
